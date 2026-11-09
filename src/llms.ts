@@ -1,31 +1,46 @@
 export const llmsMd = (base: string) => `# md-publisher-api
 
-Markdown を投稿すると、読みやすい Web ページの URL を返す API です。URL を知っている人だけが読めます(検索には載りません)。
+Markdown を送ると、読みやすい Web ページの URL を返す API です。登録も認証も要りません。ページは URL を知っている人だけが読めます(検索には載りません)。
 Base URL: ${base}
 
-## 認証
-管理用の呼び出しには \`Authorization: Bearer $MD_TOKEN\` を付けます。トークンは環境変数 MD_TOKEN に置き、出力やファイルに書かないでください。
+## 先に確認すること
+- 公開した内容は、URL を知る人なら誰でも読めます。キー、パスワード、個人情報が入っていないかを確かめ、入っていたら公開せずにユーザーへ知らせてください。
+- 利用規約: ${base}/terms
 
 ## 公開する
 \`\`\`
-curl -s -X POST "${base}/v1/docs" -H "Authorization: Bearer $MD_TOKEN" \\
-  -H "content-type: text/markdown" --data-binary @note.md
+curl -s -X POST "${base}/v1/docs" -H "content-type: text/markdown" --data-binary @note.md
 \`\`\`
 JSON でも送れます: \`{"markdown": "...", "title": "任意", "expires_in_days": 30}\`(content-type: application/json)。
-応答の \`url\` が公開ページ、\`raw_url\` が Markdown そのものです。\`id\` は更新と削除に使います。
 
-## 操作
+応答の例:
+\`\`\`
+{"id":"…","url":"${base}/d/…","raw_url":"${base}/d/….md","expires_at":"…","edit_token":"mde_…"}
+\`\`\`
+ユーザーには \`url\` を知らせてください。\`edit_token\` は更新と削除に使う値で、この応答でしか表示されません。ユーザーが後で直す可能性があるときだけ渡し、そうでなければ控えなくて構いません。ログやファイルには書かないでください。
+
+## 長い文書は分ける
+1つの文書は 200,000 バイト(日本語でおよそ6万文字)までです。超えると 413 (\`too_large\`) が返ります。
+
+章や話題ごとに分けて、複数の文書として公開してください。分けた文書には、前後の文書の URL を書くと読みやすくなります。目次になる文書を最後に1つ公開し、各文書の URL を並べる方法もあります。
+
+## 制限
+- 1つの IP から、1分に10回まで。1日に50件、合計 2,000,000 バイトまで。
+- 保存期間の初期値は30日で、\`expires_in_days\` で1〜90日に変えられます。期間が過ぎると自動で消えます。
+- 上限に達すると 429 が返ります。\`message\` に従って、時間をおいてからやり直してください。
+
+## 更新と削除
+\`Authorization: Bearer <edit_token>\` を付けます。
+
 | メソッドとパス | 内容 |
 |---|---|
-| POST /v1/docs | 新規公開。1 MB まで |
-| PUT /v1/docs/{id} | 同じ URL のまま内容を更新 |
-| GET /v1/docs/{id} | 1 件を JSON で取得 |
+| PUT /v1/docs/{id} | 同じ URL のまま内容を更新(保存期間は、更新した日から数え直します) |
+| GET /v1/docs/{id} | 1件を JSON で取得 |
 | DELETE /v1/docs/{id} | 削除 |
-| GET /v1/docs | 一覧(100 件ずつ。続きは \`cursor\`) |
 
-クエリ \`title\`(省略時は最初の見出し)と \`expires_in_days\`(1〜3650、省略で無期限)も使えます。
+クエリの \`title\`(省略時は最初の見出し)と \`expires_in_days\` も使えます。
 
-## 注意
-- 画像は https の URL だけ表示されます。HTML タグは表示されず、文字として出ます。
-- 公開した内容は、URL を知る人なら誰でも読めます。秘密の情報は載せないでください。
+## 表示について
+- HTML タグは表示されず、文字として出ます。画像は表示されず、リンクになります。
+- 問題のある文書の通報は、${base}/terms の連絡先へお願いします。
 `;
