@@ -7,9 +7,9 @@ import privacy from "../docs/PRIVACY.md";
 
 interface Env {
   DOCS: KVNamespace; IP_LIMITER: RateLimit; PAGE_LIMITER: RateLimit; PUBLISH_TOKEN: string; MAX_BYTES: string;
-  MAX_DAYS?: string; DEFAULT_DAYS?: string; DAY_DOCS?: string; DAY_BYTES?: string; ALL_DOCS?: string;
+  MAX_DAYS?: string; DAY_DOCS?: string; DAY_BYTES?: string; ALL_DOCS?: string;
 }
-interface Doc { markdown: string; title: string; created: string; updated: string; edit?: string }
+interface Doc { markdown: string; title: string; created: string; updated: string; edit?: string; ukey?: string; dkey?: string }
 interface Meta { title: string; updated: string; size: number }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -95,7 +95,7 @@ async function charge(c: any, bytes: number): Promise<Response | null> {
   return null;
 }
 
-async function readBody(c: any): Promise<{ markdown: string; title?: string; days: number; bytes: number } | Response> {
+async function readBody(c: any): Promise<{ markdown: string; title?: string; days?: number; bytes: number } | Response> {
   const max = Number(c.env.MAX_BYTES) || 200_000;
   const tooLarge = () => fail(c, 413, "too_large", `1つの文書は${max}バイトまでです。章ごとなどに分けて、複数の文書として公開してください。各文書の先頭か末尾に、前後の文書の URL を書くと読みやすくなります。`, { max_bytes: max });
   if (Number(c.req.header("content-length") ?? 0) > max + 2000) return tooLarge();
@@ -114,9 +114,9 @@ async function readBody(c: any): Promise<{ markdown: string; title?: string; day
   if (!markdown.trim()) return fail(c, 400, "markdown_required", "本文が空です。");
   const bytes = new TextEncoder().encode(markdown).length;
   if (bytes > max) return tooLarge();
-  const maxDays = Number(c.env.MAX_DAYS) || 90, def = Number(c.env.DEFAULT_DAYS) || 30;
+  const maxDays = Number(c.env.MAX_DAYS) || 3650;
   if (days !== undefined && !(Number.isInteger(days) && days >= 1 && days <= maxDays)) return fail(c, 400, "bad_expires_in_days", `expires_in_days は1から${maxDays}の整数で指定してください。`);
-  return { markdown, title: title?.slice(0, 120), days: days ?? def, bytes };
+  return { markdown, title: title?.slice(0, 120), days, bytes };
 }
 
 const urls = (c: any, id: string) => { const o = new URL(c.req.url).origin; return { url: `${o}/d/${id}`, raw_url: `${o}/d/${id}.md` }; };
@@ -127,42 +127,43 @@ async function save(c: any, id: string, prev?: Doc) {
   const over = await charge(c, b.bytes);
   if (over) return over;
   const now = new Date().toISOString();
-  const token = prev ? null : newEditToken();
-  const doc: Doc = { markdown: b.markdown, title: b.title || titleOf(b.markdown), created: prev?.created ?? now, updated: now, edit: prev?.edit ?? await sha256Hex(token!) };
-  await c.env.DOCS.put(`d:${id}`, JSON.stringify(doc), { metadata: { title: doc.title, updated: now, size: b.bytes } satisfies Meta, expirationTtl: b.days * 86400 });
-  const expires = new Date(Date.now() + b.days * 86400_000).toISOString();
-  return c.json({ id, title: doc.title, ...urls(c, id), updated: now, expires_at: expires, ...(token ? { edit_token: token, note: "edit_token は今しか表示されません。更新や削除をしないなら保存は不要です。" } : {}) }, prev ? 200 : 201, NO_STORE);
+  const keys = prev ? null : { update: newEditToken("mdu_"), del: newEditToken("mdd_") };
+  const doc: Doc = { markdown: b.markdown, title: b.title || titleOf(b.markdown), created: prev?.created ?? now, updated: now, edit: prev?.edit, ukey: prev ? prev.ukey : await sha256Hex(keys!.update), dkey: prev ? prev.dkey : await sha256Hex(keys!.del) };
+  await c.env.DOCS.put(`d:${id}`, JSON.stringify(doc), { metadata: { title: doc.title, updated: now, size: b.bytes } satisfies Meta, ...(b.days ? { expirationTtl: b.days * 86400 } : {}) });
+  const expires = b.days ? new Date(Date.now() + b.days * 86400_000).toISOString() : null;
+  return c.json({ id, title: doc.title, ...urls(c, id), updated: now, expires_at: expires, ...(keys ? { update_key: keys.update, delete_key: keys.del, note: "update_key は更新用、delete_key は削除用のキーです。今しか表示されません。後で直したり消したりする可能性があるなら、安全な場所に保存してください。" } : {}) }, prev ? 200 : 201, NO_STORE);
 }
 
-/** 編集トークン(その文書のもの)か、運営者のトークンで認可する */
-async function canEdit(c: any, doc: Doc): Promise<boolean> {
+/** 用途に合うキー(更新は update_key、削除は delete_key)か、運営者のトークンで認可する */
+async function canEdit(c: any, doc: Doc, kind: "update" | "delete"): Promise<boolean> {
   const m = (c.req.header("authorization") ?? "").match(/^Bearer (\S{20,200})$/);
   if (!m) return false;
   if (await same(m[1], c.env.PUBLISH_TOKEN)) return true;
-  return doc.edit ? safeEq(await sha256Hex(m[1]), doc.edit) : false;
+  const want = kind === "update" ? doc.ukey ?? doc.edit : doc.dkey ?? doc.edit;
+  return want ? safeEq(await sha256Hex(m[1]), want) : false;
 }
 
 app.post("/v1/docs", (c) => save(c, newId()));
 
-async function owned(c: any): Promise<{ id: string; doc: Doc } | Response> {
+async function owned(c: any, kind: "update" | "delete"): Promise<{ id: string; doc: Doc } | Response> {
   const id = c.req.param("id");
   const doc = ID.test(id) ? await (c.env.DOCS as KVNamespace).get<Doc>(`d:${id}`, "json") : null;
   if (!doc) return fail(c, 404, "not_found", "その文書は見つかりません。");
-  if (!(await canEdit(c, doc))) return fail(c, 401, "unauthorized", "編集トークンが違います。Authorization: Bearer <edit_token> で送ってください。");
+  if (!(await canEdit(c, doc, kind))) return fail(c, 401, "unauthorized", kind === "update" ? "更新用キーが違います。Authorization: Bearer <update_key> で送ってください。" : "削除用キーが違います。Authorization: Bearer <delete_key> で送ってください。");
   return { id, doc };
 }
 
-app.put("/v1/docs/:id", async (c) => { const o = await owned(c); return o instanceof Response ? o : save(c, o.id, o.doc); });
+app.put("/v1/docs/:id", async (c) => { const o = await owned(c, "update"); return o instanceof Response ? o : save(c, o.id, o.doc); });
 
 app.get("/v1/docs/:id", async (c) => {
-  const o = await owned(c);
+  const o = await owned(c, "update");
   if (o instanceof Response) return o;
-  const { edit: _e, ...pub } = o.doc;
+  const { edit: _e, ukey: _u, dkey: _d, ...pub } = o.doc;
   return c.json({ id: o.id, ...pub, ...urls(c, o.id) }, 200, NO_STORE);
 });
 
 app.delete("/v1/docs/:id", async (c) => {
-  const o = await owned(c);
+  const o = await owned(c, "delete");
   if (o instanceof Response) return o;
   await c.env.DOCS.delete(`d:${o.id}`);
   return c.json({ ok: true }, 200, NO_STORE);

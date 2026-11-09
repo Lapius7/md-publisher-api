@@ -17,9 +17,9 @@ export async function sha256Hex(s: string): Promise<string> {
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export function newEditToken(): string {
+export function newEditToken(prefix = "mde_"): string {
   const b = crypto.getRandomValues(new Uint8Array(32));
-  return "mde_" + btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return prefix + btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 export function safeEq(a: string, b: string): boolean {

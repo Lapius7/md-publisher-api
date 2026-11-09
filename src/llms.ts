@@ -15,9 +15,9 @@ JSON でも送れます: \`{"markdown": "...", "title": "任意", "expires_in_da
 
 応答の例:
 \`\`\`
-{"id":"…","url":"${base}/d/…","raw_url":"${base}/d/….md","expires_at":"…","edit_token":"mde_…"}
+{"id":"…","url":"${base}/d/…","raw_url":"${base}/d/….md","update_key":"mdu_…","delete_key":"mdd_…"}
 \`\`\`
-ユーザーには \`url\` を知らせてください。\`edit_token\` は更新と削除に使う値で、この応答でしか表示されません。ユーザーが後で直す可能性があるときだけ渡し、そうでなければ控えなくて構いません。ログやファイルには書かないでください。
+ユーザーには \`url\` を知らせてください。\`update_key\`(更新用)と \`delete_key\`(削除用)は、この応答でしか表示されません。2つともユーザーに伝えて、後で直したり消したりするときのために保管するよう案内してください。ログやファイルには書かないでください。
 
 ## 長い文書は分ける
 1つの文書は 200,000 バイト(日本語でおよそ6万文字)までです。超えると 413 (\`too_large\`) が返ります。
@@ -26,19 +26,22 @@ JSON でも送れます: \`{"markdown": "...", "title": "任意", "expires_in_da
 
 ## 制限
 - 1つの IP から、1分に10回まで。1日に50件、合計 2,000,000 バイトまで。
-- 保存期間の初期値は30日で、\`expires_in_days\` で1〜90日に変えられます。期間が過ぎると自動で消えます。
+- 公開した文書は、削除するまで残ります。自動で消したいときは、\`expires_in_days\`(1〜3650)を指定します。
 - 上限に達すると 429 が返ります。\`message\` に従って、時間をおいてからやり直してください。
 
 ## 更新と削除
-\`Authorization: Bearer <edit_token>\` を付けます。
+更新と取得には \`Authorization: Bearer <update_key>\`、削除には \`Authorization: Bearer <delete_key>\` を付けます。
 
 | メソッドとパス | 内容 |
 |---|---|
-| PUT /v1/docs/{id} | 同じ URL のまま内容を更新(保存期間は、更新した日から数え直します) |
-| GET /v1/docs/{id} | 1件を JSON で取得 |
-| DELETE /v1/docs/{id} | 削除 |
+| PUT /v1/docs/{id} | (update_key)同じ URL のまま内容を更新(\`expires_in_days\` を付けると、更新した日から数え直します) |
+| GET /v1/docs/{id} | 1件を JSON で取得(update_key) |
+| DELETE /v1/docs/{id} | 削除(delete_key) |
 
 クエリの \`title\`(省略時は最初の見出し)と \`expires_in_days\` も使えます。
+
+## 送るときの注意
+- curl で送るのが確実です。Python の標準ライブラリ(urllib)など一部のクライアントは、既定の User-Agent が原因で 403(error code: 1010)になります。その場合は \`User-Agent: curl/8\` のようなヘッダーを付けるか、curl か requests を使ってください。
 
 ## 表示について
 - HTML タグは表示されず、文字として出ます。画像は表示されず、リンクになります。

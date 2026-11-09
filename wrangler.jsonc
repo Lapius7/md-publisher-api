@@ -13,6 +13,6 @@
     { "name": "PAGE_LIMITER", "namespace_id": "2004", "simple": { "limit": 120, "period": 60 } }
   ],
   "kv_namespaces": [{ "binding": "DOCS", "id": "f067c0ad3ab74f13929fd7b0f221aa6e" }],
-  "vars": { "MAX_BYTES": "200000", "DEFAULT_DAYS": "30", "MAX_DAYS": "90", "DAY_DOCS": "50", "DAY_BYTES": "2000000", "ALL_DOCS": "5000" }
+  "vars": { "MAX_BYTES": "200000", "DAY_DOCS": "50", "DAY_BYTES": "2000000", "ALL_DOCS": "5000" }
   // KV: DOCS(下で追記)。シークレット(wrangler secret): PUBLISH_TOKEN
 }

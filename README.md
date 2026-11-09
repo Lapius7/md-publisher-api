@@ -15,7 +15,7 @@ Markdown を API で送ると、読みやすい Web ページの URL を返す�
 
 公開する前に、本文にキー、パスワード、個人情報が含まれていないかを確かめてください。見つけたら公開せず、何が含まれていたかを私に知らせてください。
 
-公開したら、応答の url を私に知らせてください。応答の edit_token は更新と削除に使う値なので、私が頼んだときだけ見せ、ログやファイルには書かないでください。
+公開したら、応答の url を私に知らせてください。応答の update_key(更新用)と delete_key(削除用)も、私に伝えてください。ログやファイルには書かないでください。
 
 文書が大きくて 413 が返ったら、章ごとに分けて、それぞれ公開してください。
 ```
@@ -37,7 +37,7 @@ curl -s -X POST https://md-publisher-api.wks.lapius7.com/v1/docs \
   -H "content-type: text/markdown" --data-binary @note.md
 ```
 
-応答に `url`(ページ)、`raw_url`(Markdown のまま)、`expires_at`(自動で消える日時)、`edit_token` が入ります。`edit_token` は更新と削除に使い、この応答でしか表示されません。
+応答に `url`(ページ)、`raw_url`(Markdown のまま)、`update_key`(更新用)、`delete_key`(削除用)が入ります。2つのキーは、この応答でしか表示されません。`expires_at` は、`expires_in_days` を指定したときだけ入ります。
 
 JSON でも送れます: `{"markdown": "...", "title": "任意", "expires_in_days": 30}`
 
@@ -46,12 +46,14 @@ JSON でも送れます: `{"markdown": "...", "title": "任意", "expires_in_day
 | メソッドとパス | 認証 | 内容 |
 |---|---|---|
 | POST /v1/docs | 不要 | 公開する |
-| PUT /v1/docs/{id} | edit_token | 同じ URL のまま更新する |
-| GET /v1/docs/{id} | edit_token | 1件を JSON で取得する |
-| DELETE /v1/docs/{id} | edit_token | 削除する |
+| PUT /v1/docs/{id} | update_key | 同じ URL のまま更新する |
+| GET /v1/docs/{id} | update_key | 1件を JSON で取得する |
+| DELETE /v1/docs/{id} | delete_key | 削除する |
 | GET /d/{id} | 不要 | ページを読む(`.md` を付けるか `?raw=1` で Markdown のまま) |
 
-edit_token は `Authorization: Bearer <edit_token>` で送ります。
+キーは `Authorization: Bearer <キー>` で送ります。
+
+Python の標準ライブラリ(urllib)は、既定の User-Agent が Cloudflare に弾かれて 403(error code: 1010)になります。curl か requests を使うか、`User-Agent: curl/8` のようなヘッダーを付けてください。
 
 ## 制限
 
@@ -59,7 +61,7 @@ edit_token は `Authorization: Bearer <edit_token>` で送ります。
 |---|---|
 | 1つの文書 | 200KB(超えると 413。分けて公開する) |
 | 1つの IP からの回数 | 1分に10回、1日に50件、1日 2MB |
-| 保存期間 | 初期値30日、`expires_in_days` で1〜90日 |
+| 保存期間 | 削除するまで残る。`expires_in_days`(1〜3650)で自動削除も選べる |
 | 全体の1日の受付 | 5,000件 |
 
 IPv6 は /64 単位で数えます。値は `wrangler.jsonc` の `vars` で変えられます。
@@ -70,7 +72,7 @@ IPv6 は /64 単位で数えます。値は `wrangler.jsonc` の `vars` で変�
 - 文書内の HTML は実行されず、文字として表示されます。`javascript:` などのリンクは無効にし、外部リンクには `rel="noopener noreferrer nofollow"` を付けます。
 - 画像は読む人の IP が投稿者に伝わるため、表示せずリンクにします。
 - ページの CSP は `default-src 'none'` で、スクリプトと外部読み込みを許しません。`nosniff`、`no-referrer`、`noindex` も付けています。
-- 文書の ID は推測できない12文字(約71ビット)です。edit_token は256ビットで、サーバーにはハッシュだけを保存します。
+- 文書の ID は推測できない12文字(約71ビット)です。2つのキーは256ビットで、サーバーにはハッシュだけを保存します。
 - IP アドレスは保存しません。1日の回数を数えるときだけ、運営者のみが知る鍵でハッシュにした値を最大2日保存します。
 - 一覧と削除の強制は運営者のトークンだけができます。
 
