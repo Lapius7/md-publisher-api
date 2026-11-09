@@ -54,7 +54,7 @@ app.get("/d/:file", async (c) => {
   const id = file.replace(/\.md$/, "");
   if (!ID.test(id)) return errorPage(404, "ページが見つかりません", "お探しのページは存在しません。");
   const doc = await c.env.DOCS.get<Doc>(`d:${id}`, "json");
-  if (!doc) return errorPage(404, "ページが見つかりません", "お探しのページは存在しないか、公開期間が終わりました。");
+  if (!doc) return errorPage(404, "ページが見つかりません", "お探しのページは存在しないか、削除されました。");
   const h = { "x-content-type-options": "nosniff", "x-robots-tag": "noindex, nofollow", "referrer-policy": "no-referrer", "cache-control": "no-cache" };
   if (raw) return new Response(doc.markdown, { headers: { ...h, "content-type": "text/plain; charset=utf-8", "content-security-policy": CSP } });
   return new Response(renderPage(doc.title, doc.markdown, doc.updated), { headers: { ...h, "content-type": "text/html; charset=utf-8", "content-security-policy": CSP } });
