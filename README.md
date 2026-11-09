@@ -23,10 +23,11 @@ Markdown を API で送ると、読みやすい Web ページの URL を返す�
 Discord のメッセージを取得するボットと組み合わせるときは、取得側の `llms.md` も読ませてください。
 
 ```
-discord-messageapi-bot のキー(環境変数 DCM_KEY)で、このチャンネルの先週の投稿を取得し、要点を Markdown にまとめてください。
-読む説明書: https://discord-messageapi-bot.wks.lapius7.com/llms.md
+環境変数 DCM_KEY のキーで、そのキーに紐づく Discord チャンネルの、先週(月曜から日曜)の投稿を取得し、要点を Markdown にまとめてください。
+取得の説明書: https://discord-messageapi-bot.wks.lapius7.com/llms.md
+
 まとめたら、次の説明書に従って公開し、url を私に知らせてください。
-公開先の説明書: https://md-publisher-api.wks.lapius7.com/llms.md
+公開の説明書: https://md-publisher-api.wks.lapius7.com/llms.md
 ```
 
 ## 使い方
