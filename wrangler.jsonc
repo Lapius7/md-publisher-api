@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "md-publisher-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "workers_dev": false,
+  "routes": [{ "pattern": "md-publisher-api.wks.lapius7.com", "custom_domain": true }],
+  "rules": [{ "type": "Text", "globs": ["**/*.md"], "fallthrough": true }],
+  "ratelimits": [
+    { "name": "IP_LIMITER", "namespace_id": "2003", "simple": { "limit": 30, "period": 60 } },
+    { "name": "PAGE_LIMITER", "namespace_id": "2004", "simple": { "limit": 120, "period": 60 } }
+  ],
+  "kv_namespaces": [{ "binding": "DOCS", "id": "f067c0ad3ab74f13929fd7b0f221aa6e" }],
+  "vars": { "MAX_BYTES": "1000000" }
+  // KV: DOCS(下で追記)。シークレット(wrangler secret): PUBLISH_TOKEN
+}
