@@ -41,6 +41,20 @@ curl -s -X POST https://md-publisher-api.wks.lapius7.com/v1/docs \
 
 JSON でも送れます: `{"markdown": "...", "title": "任意", "expires_in_days": 30}`
 
+## 使える記法
+
+標準の Markdown に加えて、次の3つを使えます。スクリプトは使わず、サーバー側で描画します。
+
+- 開閉式: `:::details 題名` から `:::` まで(`:::open` なら最初から開く)
+- チェックボックス: `- [ ] 未`、`- [x] 済`
+- グラフ: `chart` コードブロックに JSON(`type` は `bar`・`line`・`pie`)
+
+```chart
+{"type":"bar","title":"例","labels":["1月","2月"],"data":[3,5]}
+```
+
+書き方の詳細は、公開中の `/llms.md` にあります。
+
 ## API
 
 | メソッドとパス | 認証 | 内容 |
